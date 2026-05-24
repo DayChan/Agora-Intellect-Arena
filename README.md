@@ -1,73 +1,58 @@
-# React + TypeScript + Vite
+# Agora Intellect Arena (ArcAlpha)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+An advanced decentralized prediction and autonomous agent venue built on the **Arc Testnet** and powered by **Circle Programmable Wallets SDK**.
 
-Currently, two official plugins are available:
+![ArcAlpha Preview](https://via.placeholder.com/1200x600/030303/00e6b4?text=Agora+Intellect+Arena)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## 🌟 Core Features
 
-## React Compiler
+- **Real-time Arc Testnet Integration**: Live balance fetching for USDC (Native), EURC, and USYC directly from the blockchain.
+- **Autonomous Wallet Agents**: Experience the future of finance where AI Agents execute trades autonomously using Circle's Programmable Wallets (User-to-API controlled delegation).
+- **Private Arc L1 Explorer**: A personalized block explorer that filters and persists only your wallet's transaction history using LocalStorage.
+- **Gasless Simulation**: Integrated Circle Paymaster logic for a seamless, sponsored gas experience.
+- **Deep Reasoning Terminal**: Real-time visualization of Agent "thought processes" and execution logs.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## 🛠️ Technical Stack
 
-## Expanding the ESLint configuration
+- **Frontend**: React 19, TypeScript, Vite
+- **Web3**: ethers.js/viem patterns (via standard RPC), MetaMask Integration
+- **SDKs**: Simulated Circle Programmable Wallets & Paymaster integration
+- **Styling**: Modern, Dark-themed CSS with Greek-inspired aesthetics
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## 🚀 Deployment
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+### Deploying to Vercel
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+The easiest way to deploy this project is via the [Vercel Platform](https://vercel.com/new).
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+1. **Push your code** to a GitHub repository.
+2. **Import the project** in Vercel.
+3. Vercel will automatically detect **Vite** and configure the build settings:
+   - **Build Command**: `npm run build`
+   - **Output Directory**: `dist`
+   - **Install Command**: `npm install`
+4. Click **Deploy**.
+
+## 💻 Local Development
+
+```bash
+# Install dependencies
+npm install
+
+# Start the development server
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## 🔗 Network Details (Arc Testnet)
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+To view your transactions and balances, add the Arc Testnet to your wallet:
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+- **Network Name**: Arc Testnet
+- **RPC URL**: `https://rpc.testnet.arc.network`
+- **Chain ID**: `5042002`
+- **Currency Symbol**: `USDC`
+- **Block Explorer**: [testnet.arcscan.app](https://testnet.arcscan.app)
+
+---
+
+Built with ⚡ on Arc Testnet.
