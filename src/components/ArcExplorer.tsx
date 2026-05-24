@@ -124,7 +124,7 @@ export const ArcExplorer: React.FC<ArcExplorerProps> = ({
                           <div className="tx-header">
                             <span style={{ color: 'var(--amber)', fontWeight: 600 }}>{tx.type}</span>
                             <span style={{ fontFamily: 'var(--font-mono)' }}>
-                              Hash: {tx.hash.substring(0, 8)}...{tx.hash.substring(34)}
+                              Hash: <a href={`https://testnet.arcscan.app/tx/${tx.hash}`} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'underline', color: 'var(--accent)', cursor: 'pointer' }} title="View on ArcScan Explorer">{tx.hash.substring(0, 8)}...{tx.hash.substring(tx.hash.length - 8)}</a>
                             </span>
                           </div>
                           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginTop: '2px' }}>
