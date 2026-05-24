@@ -171,7 +171,7 @@ export default function App() {
     }
   }, [walletAddress, fetchBalance]);
 
-  const [isFlashGreen, setIsFlashGreen] = useState(false);
+  const [isFlashGreen] = useState(false);
   const [devLogs, setDevLogs] = useState<string[]>([
     "Gateway SDK: connection established to https://arc-node.thecanteenapp.com",
     "Wallets SDK: initialized with secure key storage policies",
@@ -264,13 +264,6 @@ export default function App() {
     addDevLog(`External: opened Circle Faucet for Arc Testnet.`);
   };
 
-  // Agent-specific autonomous balances (simulating Circle API-Controlled Wallets)
-  const [delegatedBalances, setDelegatedBalances] = useState<Record<string, number>>({
-    'plato-r1': 0,
-    'aristotle-kelly': 0,
-    'heraclitus-arb': 0
-  });
-
   // Mock Circle Wallets SDK "Agent" Service
   const walletAgent = {
     // Simulates Circle's Programmable Wallets SDK: executeContractCall
@@ -297,14 +290,8 @@ export default function App() {
         
         const txHash = '0x' + Math.random().toString(16).substr(2, 40);
 
-        // Simulating autonomous deduction from delegated pool
+        // Record in explorer even if autonomous (as it's user's delegated money)
         if (amount) {
-          setDelegatedBalances(prev => ({
-            ...prev,
-            [agentId]: Math.max(0, prev[agentId] - amount)
-          }));
-
-          // Record in explorer even if autonomous (as it's user's delegated money)
           recordUserTx({
             hash: txHash,
             from: agentAddress,
@@ -337,7 +324,7 @@ export default function App() {
   };
 
   // Capital delegation handler
-  const handleDelegateCapital = async (agentId: string, amount: number, risk: string, sizing: string) => {
+  const handleDelegateCapital = async (agentId: string, amount: number, _risk: string, _sizing: string) => {
     const agent = agents.find((a) => a.id === agentId);
     const agentName = agent?.name || agentId;
 
@@ -360,11 +347,6 @@ export default function App() {
     addDevLog(`Wallets SDK: Created new User-Controlled wallet at ${agent?.address}.`);
     addDevLog(`Wallets SDK: Upgraded to API-Controlled for autonomous trading authority.`);
     
-    setDelegatedBalances(prev => ({
-      ...prev,
-      [agentId]: prev[agentId] + amount
-    }));
-
     // Increase Agent AUM in UI
     setAgents((prev) =>
       prev.map((a) =>
