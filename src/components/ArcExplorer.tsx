@@ -75,7 +75,7 @@ export const ArcExplorer: React.FC<ArcExplorerProps> = ({
           onClick={onRequestFaucet}
           style={{ width: '100%', marginTop: '16px', display: 'flex', alignItems: 'center', gap: '6px' }}
         >
-          <RefreshCcw size={12} /> Request Testnet USDC (+1,000)
+          <RefreshCcw size={12} /> Open Official Circle Faucet
         </button>
       </div>
 

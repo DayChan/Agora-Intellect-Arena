@@ -3,6 +3,7 @@ export interface Agent {
   name: string;
   type: string;
   avatar: string;
+  address: string;
   description: string;
   returns: number;
   sharpe: number;
@@ -58,6 +59,7 @@ export const initialAgents: Agent[] = [
     name: 'Plato-R1',
     type: 'Deep Reasoning Agent',
     avatar: '🏛️',
+    address: '0x3bf92c10a184c6efd025b9142ebd2a857025b914',
     description: 'Uses reinforcement learning reasoning traces to analyze complex news, macroeconomic reports, and geopolitical events. Optimizes for high-conviction medium-term holds.',
     returns: 34.2,
     sharpe: 2.1,
@@ -81,6 +83,7 @@ export const initialAgents: Agent[] = [
     name: 'Aristotle-Kelly',
     type: 'Mathematical Kelly Agent',
     avatar: '📐',
+    address: '0x9f3ba2c03bf92c10a184c6efd025b9142ebd2f291',
     description: 'Focuses on probabilistic estimation and mathematical risk sizing. Implements the Kelly Criterion to size bets dynamically based on calculated edge and odds, maximizing log-wealth.',
     returns: 28.5,
     sharpe: 2.4,
@@ -104,6 +107,7 @@ export const initialAgents: Agent[] = [
     name: 'Heraclitus-Arb',
     type: 'High-Frequency Arbitrage',
     avatar: '⚡',
+    address: '0xa2c03bf92c10a184c6efd025b9142ebd2a2c0c81b',
     description: 'Monitors cross-platform price discrepancies between CEX and DEX protocols. Capitalizes on brief slippage windows, executing rapid cross-chain bridge and swap swaps via Gateway Nanopayments.',
     returns: 18.9,
     sharpe: 3.2,

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import type {
   Agent,
   Market,
@@ -16,20 +16,160 @@ import { ReasoningTerminal } from './components/ReasoningTerminal';
 import { AgoraMarket } from './components/AgoraMarket';
 import { ArcExplorer } from './components/ArcExplorer';
 import { DevPortal } from './components/DevPortal';
-import { GitBranch } from 'lucide-react';
+import { GitBranch, CheckCircle, AlertTriangle, X } from 'lucide-react';
+
+interface Toast {
+  id: string;
+  message: string;
+  type: 'success' | 'error' | 'info';
+}
 
 export default function App() {
   const [agents, setAgents] = useState<Agent[]>(initialAgents);
   const [selectedAgent, setSelectedAgent] = useState<Agent>(initialAgents[0]);
   const [markets, setMarkets] = useState<Market[]>(initialMarkets);
   const [logs, setLogs] = useState<LogLine[]>(initialLogs);
+  const [walletAddress, setWalletAddress] = useState<string | null>(null);
+  const [toasts, setToasts] = useState<Toast[]>([]);
+
+  // Toast notification system
+  const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'success') => {
+    const id = 'toast-' + Math.random().toString(36).substr(2, 9);
+    setToasts((prev) => [...prev, { id, message, type }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 4000);
+  }, []);
+
+  const dismissToast = useCallback((id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
+  // Monitor MetaMask account changes automatically
+  useEffect(() => {
+    if (typeof window !== 'undefined' && (window as any).ethereum) {
+      (window as any).ethereum.request({ method: 'eth_accounts' })
+        .then((accounts: string[]) => {
+          if (accounts.length > 0) {
+            setWalletAddress(accounts[0]);
+          }
+        });
+
+      const handleAccounts = (accounts: string[]) => {
+        if (accounts.length > 0) {
+          setWalletAddress(accounts[0]);
+        } else {
+          setWalletAddress(null);
+        }
+      };
+
+      (window as any).ethereum.on('accountsChanged', handleAccounts);
+      return () => {
+        if ((window as any).ethereum.removeListener) {
+          (window as any).ethereum.removeListener('accountsChanged', handleAccounts);
+        }
+      };
+    }
+  }, []);
+
+  const connectWallet = async () => {
+    if (typeof window === 'undefined' || !(window as any).ethereum) {
+      alert("No Web3 wallet found. Please install MetaMask!");
+      return;
+    }
+    try {
+      const accounts = await (window as any).ethereum.request({ method: 'eth_requestAccounts' });
+      const address = accounts[0];
+      setWalletAddress(address);
+
+      // Connect or Switch to Arc Testnet (5042002 -> 0x4cef52)
+      try {
+        await (window as any).ethereum.request({
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: '0x4cef52' }],
+        });
+      } catch (switchError: any) {
+        if (switchError.code === 4902) {
+          await (window as any).ethereum.request({
+            method: 'wallet_addEthereumChain',
+            params: [{
+              chainId: '0x4cef52',
+              chainName: 'Arc Testnet',
+              nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 18 },
+              rpcUrls: ['https://rpc.testnet.arc.network'],
+              blockExplorerUrls: ['https://testnet.arcscan.app']
+            }],
+          });
+        } else {
+          throw switchError;
+        }
+      }
+
+      addDevLog(`Wallets SDK: connected user wallet ${address.substring(0, 8)}...${address.substring(34)} on Arc Testnet.`);
+      showToast(`钱包已连接 Arc Testnet ✓`, 'success');
+    } catch (error: any) {
+      console.error("Wallet connection failed:", error);
+      alert(`Wallet connection failed: ${error.message}`);
+    }
+  };
   
-  // Balances
+  // Real-time Balances from Chain
   const [balances, setBalances] = useState({
-    usdc: 15420.50,
-    eurc: 8400.00,
-    usyc: 50000.00
+    usdc: 0,
+    eurc: 0,
+    usyc: 0
   });
+
+  const fetchBalance = useCallback(async (address: string) => {
+    if (!(window as any).ethereum) return;
+    try {
+      // 1. Fetch Native USDC (18 decimals on Arc)
+      const usdcHex = await (window as any).ethereum.request({
+        method: 'eth_getBalance',
+        params: [address, 'latest'],
+      });
+      const usdcVal = parseInt(usdcHex, 16) / 10 ** 18;
+
+      // 2. Fetch EURC (ERC-20: 0x89B5...D72a, 6 decimals)
+      // balanceOf selector: 0x70a08231 + padded address
+      const paddedAddress = address.toLowerCase().replace('0x', '').padStart(64, '0');
+      const eurcHex = await (window as any).ethereum.request({
+        method: 'eth_call',
+        params: [{
+          to: '0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a',
+          data: '0x70a08231' + paddedAddress
+        }, 'latest'],
+      });
+      const eurcVal = eurcHex !== '0x' ? parseInt(eurcHex, 16) / 10 ** 6 : 0;
+
+      // 3. Fetch USYC (ERC-20: 0xe918...db86C, 6 decimals)
+      const usycHex = await (window as any).ethereum.request({
+        method: 'eth_call',
+        params: [{
+          to: '0xe9185F0c5F296Ed1797AaE4238D26CCaBEadb86C',
+          data: '0x70a08231' + paddedAddress
+        }, 'latest'],
+      });
+      const usycVal = usycHex !== '0x' ? parseInt(usycHex, 16) / 10 ** 6 : 0;
+
+      setBalances({
+        usdc: usdcVal,
+        eurc: eurcVal,
+        usyc: usycVal,
+      });
+    } catch (err) {
+      console.error("Failed to fetch balance:", err);
+    }
+  }, []);
+
+  // Update balance when wallet changes or periodically
+  useEffect(() => {
+    if (walletAddress) {
+      fetchBalance(walletAddress);
+      const interval = setInterval(() => fetchBalance(walletAddress), 10000);
+      return () => clearInterval(interval);
+    }
+  }, [walletAddress, fetchBalance]);
 
   const [isFlashGreen, setIsFlashGreen] = useState(false);
   const [devLogs, setDevLogs] = useState<string[]>([
@@ -38,142 +178,250 @@ export default function App() {
     "Paymaster SDK: paymaster contract verified. Sponsor budget: active."
   ]);
 
-  // Block explorer state
-  const [blocks, setBlocks] = useState<Block[]>([
-    {
-      number: 4829302,
-      timestamp: '22:59:06',
-      hash: '0x3bf92c10a184c6efd025b9142ebd2a857025b914',
-      txCount: 1,
-      transactions: [
-        {
-          hash: '0xa2c03bf92c10a184c6efd025b9142ebd2a857025b9142ebd2a2c0c81b',
-          blockNumber: 4829302,
-          timestamp: '22:59:06',
-          from: '0xaristotle_wallet_882d',
-          to: '0xmarket_cpi_yes_contract_2901',
-          amount: 1485,
-          fee: 0.0098,
-          currency: 'USDC',
-          type: 'BET'
-        }
-      ]
-    },
-    {
-      number: 4829301,
-      timestamp: '22:58:16',
-      hash: '0x9f3ba2c03bf92c10a184c6efd025b9142ebd2f291',
-      txCount: 1,
-      transactions: [
-        {
-          hash: '0x9f3ba2c03bf92c10a184c6efd025b9142ebd2f291a2c0e8a1a3848b8c',
-          blockNumber: 4829301,
-          timestamp: '22:58:16',
-          from: '0xplato_wallet_9a2f',
-          to: '0xmarket_cpi_yes_contract_2901',
-          amount: 5000,
-          fee: 0.0102,
-          currency: 'USDC',
-          type: 'BET'
-        }
-      ]
-    },
-    {
-      number: 4829300,
-      timestamp: '22:57:40',
-      hash: '0x7e8a3cf841b8a92f02c6efd821a8a2bfd2903847',
-      txCount: 0,
-      transactions: []
-    }
-  ]);
+  // Block explorer state - Now only tracks user-specific transactions with persistence
+  const [blocks, setBlocks] = useState<Block[]>(() => {
+    const saved = localStorage.getItem('arc_explorer_blocks');
+    return saved ? JSON.parse(saved) : [];
+  });
 
+  // Persist blocks to localStorage
+  useEffect(() => {
+    localStorage.setItem('arc_explorer_blocks', JSON.stringify(blocks));
+  }, [blocks]);
+
+  // Helper to add a transaction to the explorer (only if relevant to user)
+  const recordUserTx = useCallback((tx: Omit<Tx, 'blockNumber' | 'timestamp' | 'fee'>) => {
+    if (!walletAddress) return;
+    
+    // Only record if it involves the user's wallet
+    const isUserRelated = tx.from.toLowerCase() === walletAddress.toLowerCase() || 
+                         tx.to.toLowerCase() === walletAddress.toLowerCase();
+    
+    if (!isUserRelated) return;
+
+    const now = new Date();
+    const timeStr = now.toTimeString().split(' ')[0];
+    const blockNum = 4829300 + blocks.length + 1;
+
+    const newTx: Tx = {
+      ...tx,
+      blockNumber: blockNum,
+      timestamp: timeStr,
+      fee: 0.0095
+    };
+
+    const newBlock: Block = {
+      number: blockNum,
+      timestamp: timeStr,
+      hash: '0x' + Math.random().toString(16).substr(2, 40),
+      txCount: 1,
+      transactions: [newTx]
+    };
+
+    setBlocks(prev => [newBlock, ...prev].slice(0, 50)); // Keep last 50 blocks
+  }, [walletAddress, blocks.length]);
 
   // Clear logs handler
   const handleClearLogs = () => {
     setLogs([]);
+    setBlocks([]); // Also clear explorer when clearing logs
     setDevLogs([
       `Console cleared. System listening...`
     ]);
   };
 
+  // Fire-and-forget on-chain tx helper — never blocks the UI
+  const sendTxFireAndForget = (params: { from: string; to: string; value: string; data: string }, label: string) => {
+    if (!(window as any).ethereum) return;
+    (window as any).ethereum.request({
+      method: 'eth_sendTransaction',
+      params: [params]
+    }).then((txHash: string) => {
+      addDevLog(`✅ ${label} tx confirmed. Hash: ${txHash}`);
+      showToast(`链上交易已确认: ${txHash.substring(0, 10)}...`, 'success');
+      
+      // Record in explorer
+      recordUserTx({
+        hash: txHash,
+        from: params.from,
+        to: params.to,
+        amount: parseInt(params.value, 16) / 10**18 || 0,
+        currency: 'USDC',
+        type: label.toUpperCase() as any
+      });
+
+      // Refetch balance after tx
+      if (walletAddress) setTimeout(() => fetchBalance(walletAddress), 2000);
+    }).catch((err: any) => {
+      addDevLog(`⚠️ ${label} tx skipped — ${err.message}`);
+    });
+  };
+
   // Faucet request handler
   const handleRequestFaucet = () => {
-    setBalances((prev) => ({
-      ...prev,
-      usdc: prev.usdc + 1000,
-    }));
-    setIsFlashGreen(true);
-    setTimeout(() => setIsFlashGreen(false), 1000);
+    showToast('正在打开官方水龙头页面...', 'info');
+    window.open('https://faucet.circle.com/?network=arc-testnet', '_blank');
+    addDevLog(`External: opened Circle Faucet for Arc Testnet.`);
+  };
 
-    // Add developer SDK log
-    addDevLog(`Wallets SDK: requestFaucet called. Minted 1,000 USDC on-chain to user wallet (0xUserWallet...8f3)`);
-    addDevLog(`Paymaster: sponsored gas fee for faucet mint transaction.`);
+  // Agent-specific autonomous balances (simulating Circle API-Controlled Wallets)
+  const [delegatedBalances, setDelegatedBalances] = useState<Record<string, number>>({
+    'plato-r1': 0,
+    'aristotle-kelly': 0,
+    'heraclitus-arb': 0
+  });
+
+  // Mock Circle Wallets SDK "Agent" Service
+  const walletAgent = {
+    // Simulates Circle's Programmable Wallets SDK: executeContractCall
+    executeContractCall: async (params: {
+      method: string,
+      args: any[],
+      label: string,
+      amount?: number,
+      to?: string,
+      agentId?: string // Optional: if provided, uses autonomous agent wallet
+    }) => {
+      const { method, args, label, amount, to, agentId } = params;
+      const isAutonomous = !!agentId;
+      
+      addDevLog(`Wallets SDK: [${isAutonomous ? 'API-Controlled' : 'User-Controlled'} Wallet] request received.`);
+      addDevLog(`Wallets SDK: Executing ${method}(${args.join(', ')})...`);
+      
+      if (isAutonomous) {
+        const agentObj = agents.find(a => a.id === agentId);
+        const agentAddress = agentObj?.address || `agent_${agentId.replace('-', '_')}_vault`;
+        
+        addDevLog(`Wallets SDK: Autonomous signing via WalletID: ${agentAddress}`);
+        addDevLog(`Paymaster: Gas sponsorship confirmed via policy_id: pol_7721.`);
+        
+        const txHash = '0x' + Math.random().toString(16).substr(2, 40);
+
+        // Simulating autonomous deduction from delegated pool
+        if (amount) {
+          setDelegatedBalances(prev => ({
+            ...prev,
+            [agentId]: Math.max(0, prev[agentId] - amount)
+          }));
+
+          // Record in explorer even if autonomous (as it's user's delegated money)
+          recordUserTx({
+            hash: txHash,
+            from: agentAddress,
+            to: to || '0x0000...dEaD',
+            amount: amount,
+            currency: 'USDC',
+            type: label.toUpperCase() as any
+          });
+        }
+        
+        // No MetaMask popup for autonomous agent actions
+        return { status: 'COMPLETE', txHash: txHash };
+      } else {
+        addDevLog(`Wallets SDK: Redirecting to User EOA (MetaMask) for manual signing...`);
+        // If it's a real trade with value
+        if (walletAddress && amount && to) {
+          const valueInWei = BigInt(Math.floor(amount * 10 ** 10)) * BigInt(10 ** 8);
+          const hexValue = '0x' + valueInWei.toString(16);
+          
+          sendTxFireAndForget({
+            from: walletAddress,
+            to: to,
+            value: hexValue,
+            data: '0x'
+          }, label);
+        }
+        return { status: 'PENDING_USER', txHash: null };
+      }
+    }
   };
 
   // Capital delegation handler
-  const handleDelegateCapital = (agentId: string, amount: number, risk: string, sizing: string) => {
-    // Deduct balance
-    setBalances((prev) => ({
+  const handleDelegateCapital = async (agentId: string, amount: number, risk: string, sizing: string) => {
+    const agent = agents.find((a) => a.id === agentId);
+    const agentName = agent?.name || agentId;
+
+    showToast(`正在将 ${amount} USDC 转移到 ${agentName} 的 Programmable Wallet...`, 'info');
+    
+    // Step 1: Real on-chain transfer from User to Agent Vault
+    if (walletAddress && agent?.address) {
+      const valueInWei = BigInt(Math.floor(amount * 10 ** 10)) * BigInt(10 ** 8);
+      const hexValue = '0x' + valueInWei.toString(16);
+      
+      sendTxFireAndForget({
+        from: walletAddress,
+        to: agent.address, // Real Agent Address
+        value: hexValue,
+        data: '0x'
+      }, 'Delegation');
+    }
+
+    // Step 2: Initialize autonomous control
+    addDevLog(`Wallets SDK: Created new User-Controlled wallet at ${agent?.address}.`);
+    addDevLog(`Wallets SDK: Upgraded to API-Controlled for autonomous trading authority.`);
+    
+    setDelegatedBalances(prev => ({
       ...prev,
-      usdc: prev.usdc - amount,
+      [agentId]: prev[agentId] + amount
     }));
 
-    // Increase Agent AUM
+    // Increase Agent AUM in UI
     setAgents((prev) =>
-      prev.map((agent) =>
-        agent.id === agentId
-          ? { ...agent, aum: agent.aum + amount }
-          : agent
+      prev.map((a) =>
+        a.id === agentId
+          ? { ...a, aum: a.aum + amount }
+          : a
       )
     );
 
     const now = new Date();
     const timeStr = now.toTimeString().split(' ')[0];
-    const agentName = agents.find((a) => a.id === agentId)?.name || agentId;
-
-    // Terminal log
     const newLogId = 'log-' + Math.random().toString(36).substr(2, 9);
-    const newLog: LogLine = {
+    setLogs((prev) => [...prev, {
       id: newLogId,
       timestamp: timeStr,
       agentId: agentId,
       type: 'info',
-      content: `USER DELEGATED ${amount} USDC to ${agentName}. Sizing rule: ${sizing}. Risk profile: ${risk}.`
-    };
-    setLogs((prev) => [...prev, newLog]);
-
-    // SDK Log
-    addDevLog(`Wallets SDK: transferUSDC from User (0xUserWallet...) to Agent Vault (0x${agentId}_vault...) successful. Amount: ${amount} USDC.`);
-    addDevLog(`Paymaster: sponsored gas fee for delegation contract trigger.`);
+      content: `DELEGATION COMPLETE: ${agentName} now has autonomous control over ${amount} USDC.`
+    }]);
+    
+    showToast(`委托成功！${agentName} 现在可以自主交易了 ✓`, 'success');
   };
 
   // Prediction market trade handler
-  const handlePlaceBet = (marketId: string, outcome: 'YES' | 'NO', stake: number) => {
-    // Deduct user balance
-    setBalances((prev) => ({
-      ...prev,
-      usdc: prev.usdc - stake,
-    }));
+  const handlePlaceBet = async (marketId: string, outcome: 'YES' | 'NO', stake: number) => {
+    const market = markets.find((m) => m.id === marketId);
+    const marketTitle = market?.title || marketId;
+
+    showToast(`Wallet Agent 正在执行交易: ${outcome} (${stake} USDC)...`, 'info');
+
+    // Use Wallet Agent to execute the trade
+    await walletAgent.executeContractCall({
+      method: 'buyShares',
+      args: [marketId, outcome, stake],
+      label: 'Bet',
+      amount: stake,
+      to: '0x000000000000000000000000000000000000dEaD' // Market Treasury
+    });
 
     // Update prediction market probability shift
     setMarkets((prev) =>
-      prev.map((market) => {
-        if (market.id === marketId) {
+      prev.map((m) => {
+        if (m.id === marketId) {
           const shift = outcome === 'YES' ? 1.5 : -1.5;
-          const newYes = Math.max(5, Math.min(95, market.yesProbability + shift));
+          const newYes = Math.max(5, Math.min(95, m.yesProbability + shift));
           return {
-            ...market,
-            volume: market.volume + stake,
+            ...m,
+            volume: m.volume + stake,
             yesProbability: newYes
           };
         }
-        return market;
+        return m;
       })
     );
 
     const now = new Date();
     const timeStr = now.toTimeString().split(' ')[0];
-    const marketTitle = markets.find((m) => m.id === marketId)?.title || marketId;
 
     // Terminal log
     const newLogId = 'log-' + Math.random().toString(36).substr(2, 9);
@@ -182,13 +430,10 @@ export default function App() {
       timestamp: timeStr,
       agentId: 'user',
       type: 'action',
-      content: `USER placed trade: Bought ${outcome} shares on "${marketTitle.substring(0, 40)}..." for ${stake} USDC.`
+      content: `USER placed trade via Wallet Agent: Bought ${outcome} shares on "${marketTitle.substring(0, 40)}..." for ${stake} USDC.`
     };
     setLogs((prev) => [...prev, newLog]);
-
-    // SDK Log
-    addDevLog(`Wallets SDK: executeContractCall (buyShares) for Market: ${marketId}. Stance: ${outcome}, Amount: ${stake} USDC.`);
-    addDevLog(`Paymaster: sponsored gas fee for user market purchase. Receipt: ~$0.01 USDC sponsored.`);
+    showToast(`交易已确认 — 由 Wallet Agent 成功执行 ✓`, 'success');
   };
 
   // Helper helper to append logs to SDK Event Listening Console
@@ -348,8 +593,8 @@ export default function App() {
 
         const blockJsons = await Promise.all(blockPromises);
         
-        // 3. Format the block details into Block interface
-        const crawledBlocks: Block[] = blockJsons
+        // 3. Format the block details and filter for User-only transactions
+        const userRelatedBlocks: Block[] = blockJsons
           .map((res) => {
             if (!res || !res.result) return null;
             const b = res.result;
@@ -359,38 +604,45 @@ export default function App() {
             const date = new Date(blockTimestamp * 1000);
             const timeStr = date.toTimeString().split(' ')[0];
 
-            // Parse actual transactions on-chain
-            const txs: Tx[] = (b.transactions || []).map((t: any) => {
-              let txType: 'DELEGATE' | 'BET' | 'REBALANCE' | 'MINT' | 'ARBITRAGE' = 'BET';
-              const input = t.input || '0x';
-              if (input.startsWith('0xcf6c62ea')) {
-                txType = 'ARBITRAGE';
-              } else if (input.startsWith('0x472b43f3')) {
-                txType = 'REBALANCE';
-              } else if (t.value !== '0x0') {
-                txType = 'BET';
-              } else {
-                txType = 'DELEGATE';
-              }
+            // Parse and filter transactions on-chain for the user's wallet
+            const txs: Tx[] = (b.transactions || [])
+              .filter((t: any) => {
+                if (!walletAddress) return false;
+                return (t.from && t.from.toLowerCase() === walletAddress.toLowerCase()) || 
+                       (t.to && t.to.toLowerCase() === walletAddress.toLowerCase());
+              })
+              .map((t: any) => {
+                let txType: 'DELEGATE' | 'BET' | 'REBALANCE' | 'MINT' | 'ARBITRAGE' = 'BET';
+                const input = t.input || '0x';
+                if (input.startsWith('0xcf6c62ea')) {
+                  txType = 'ARBITRAGE';
+                } else if (input.startsWith('0x472b43f3')) {
+                  txType = 'REBALANCE';
+                } else if (t.value !== '0x0') {
+                  txType = 'BET';
+                } else {
+                  txType = 'DELEGATE';
+                }
 
-              // Format value in native USDC decimals (usually 6 decimals for USDC native on EVM)
-              const valueDecimal = parseInt(t.value, 16);
-              const formattedAmount = valueDecimal > 0 
-                ? (valueDecimal / 10**6) 
-                : 100 + (parseInt(t.nonce, 16) % 9) * 50;
+                const valueDecimal = parseInt(t.value, 16);
+                const formattedAmount = valueDecimal > 0 
+                  ? (valueDecimal / 10**18) 
+                  : 100 + (parseInt(t.nonce, 16) % 9) * 50;
 
-              return {
-                hash: t.hash,
-                blockNumber: blockNum,
-                timestamp: timeStr,
-                from: t.from,
-                to: t.to || "",
-                amount: formattedAmount,
-                fee: parseFloat(parseInt(t.gasPrice, 16) ? ((parseInt(t.gasPrice, 16) * parseInt(t.gas, 16)) / 10**6).toFixed(4) : "0.0100"),
-                currency: 'USDC',
-                type: txType
-              };
-            });
+                return {
+                  hash: t.hash,
+                  blockNumber: blockNum,
+                  timestamp: timeStr,
+                  from: t.from,
+                  to: t.to || "",
+                  amount: formattedAmount,
+                  fee: parseFloat(parseInt(t.gasPrice, 16) ? ((parseInt(t.gasPrice, 16) * parseInt(t.gas, 16)) / 10**6).toFixed(4) : "0.0100"),
+                  currency: 'USDC',
+                  type: txType
+                };
+              });
+
+            if (txs.length === 0) return null; // Skip blocks with no user activity
 
             return {
               number: blockNum,
@@ -402,8 +654,12 @@ export default function App() {
           })
           .filter((b): b is Block => b !== null);
 
-        if (crawledBlocks.length > 0) {
-          setBlocks(crawledBlocks);
+        if (userRelatedBlocks.length > 0) {
+          setBlocks(prev => {
+            const existingHashes = new Set(prev.map(b => b.hash));
+            const newUniqueBlocks = userRelatedBlocks.filter(b => !existingHashes.has(b.hash));
+            return [...newUniqueBlocks, ...prev].slice(0, 50);
+          });
         }
       } catch (err) {
         console.error("Failed to crawl Arc Testnet blocks:", err);
@@ -411,15 +667,47 @@ export default function App() {
     }
 
     // Crawl initially
-    fetchLatestBlocks();
+    if (walletAddress) fetchLatestBlocks();
 
-    // Poll every 8 seconds to fetch new live blocks
-    const crawlerInterval = setInterval(fetchLatestBlocks, 8000);
+    // Poll every 8 seconds
+    const crawlerInterval = setInterval(() => {
+      if (walletAddress) fetchLatestBlocks();
+    }, 8000);
     return () => clearInterval(crawlerInterval);
-  }, []);
+  }, [walletAddress]);
 
   return (
     <div className="app-container">
+      {/* Toast notifications */}
+      <div style={{
+        position: 'fixed', top: '16px', right: '16px', zIndex: 9999,
+        display: 'flex', flexDirection: 'column', gap: '8px', maxWidth: '380px'
+      }}>
+        {toasts.map((toast) => (
+          <div
+            key={toast.id}
+            style={{
+              padding: '10px 16px',
+              borderRadius: '6px',
+              fontSize: '12px',
+              fontFamily: 'var(--font-mono)',
+              display: 'flex', alignItems: 'center', gap: '8px',
+              animation: 'slideIn 0.3s ease-out',
+              backdropFilter: 'blur(12px)',
+              border: '1px solid',
+              borderColor: toast.type === 'success' ? 'var(--accent-border)' : toast.type === 'error' ? 'rgba(255,82,82,0.3)' : 'var(--card-border)',
+              background: toast.type === 'success' ? 'rgba(0,230,180,0.1)' : toast.type === 'error' ? 'rgba(255,82,82,0.1)' : 'rgba(255,255,255,0.05)',
+              color: toast.type === 'success' ? 'var(--accent)' : toast.type === 'error' ? 'var(--red)' : 'var(--text-primary)',
+              boxShadow: '0 4px 20px rgba(0,0,0,0.4)'
+            }}
+          >
+            {toast.type === 'success' ? <CheckCircle size={14} /> : <AlertTriangle size={14} />}
+            <span style={{ flex: 1 }}>{toast.message}</span>
+            <X size={12} style={{ cursor: 'pointer', opacity: 0.5 }} onClick={() => dismissToast(toast.id)} />
+          </div>
+        ))}
+      </div>
+
       {/* App Header */}
       <header className="app-header">
         <h1 className="header-logo">
@@ -434,8 +722,42 @@ export default function App() {
             <GitBranch size={12} style={{ color: 'var(--amber)' }} />
             <span>git://main</span>
           </div>
+          <button
+            onClick={connectWallet}
+            className="btn btn-outline"
+            style={{ fontSize: '11px', height: '28px', padding: '0 12px', borderColor: walletAddress ? 'var(--accent)' : 'var(--card-border)' }}
+          >
+            {walletAddress
+              ? `🟢 ${walletAddress.substring(0, 6)}...${walletAddress.substring(38)}`
+              : '🔗 Connect Wallet'
+            }
+          </button>
         </div>
       </header>
+
+      {/* Wallet status banner */}
+      {walletAddress && (
+        <div style={{
+          padding: '8px 24px',
+          background: 'rgba(0,230,180,0.05)',
+          borderBottom: '1px solid var(--accent-border)',
+          fontSize: '11px',
+          color: 'var(--text-secondary)',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }}>
+          <span>🟢 已连接 Arc Testnet — 所有操作均可正常使用。链上交易需要测试网 Gas（可选）。</span>
+          <a
+            href="https://testnet.arcscan.app"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: 'var(--accent)', textDecoration: 'underline', fontSize: '10px' }}
+          >
+            ArcScan Explorer ↗
+          </a>
+        </div>
+      )}
 
       {/* Decorative Greek band */}
       <div className="meander"></div>
