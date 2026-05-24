@@ -87,7 +87,6 @@ export default function App() {
     }
   ]);
 
-  const [currentBlockNumber, setCurrentBlockNumber] = useState(4829302);
 
   // Clear logs handler
   const handleClearLogs = () => {
@@ -106,41 +105,9 @@ export default function App() {
     setIsFlashGreen(true);
     setTimeout(() => setIsFlashGreen(false), 1000);
 
-    const now = new Date();
-    const timeStr = now.toTimeString().split(' ')[0];
-    const newTxHash = '0x' + Array.from({length: 64}, () => Math.floor(Math.random()*16).toString(16)).join('');
-    
     // Add developer SDK log
     addDevLog(`Wallets SDK: requestFaucet called. Minted 1,000 USDC on-chain to user wallet (0xUserWallet...8f3)`);
     addDevLog(`Paymaster: sponsored gas fee for faucet mint transaction.`);
-
-    // Push block on L1 explorer
-    const newBlockNum = currentBlockNumber + 1;
-    setCurrentBlockNumber(newBlockNum);
-    const newBlockHash = '0x' + Array.from({length: 40}, () => Math.floor(Math.random()*16).toString(16)).join('');
-
-    const newTx: Tx = {
-      hash: newTxHash,
-      blockNumber: newBlockNum,
-      timestamp: timeStr,
-      from: '0xarc_faucet_contract_0000',
-      to: '0xuser_wallet_8f3c',
-      amount: 1000,
-      fee: 0.0125,
-      currency: 'USDC',
-      type: 'MINT'
-    };
-
-    setBlocks((prev) => [
-      {
-        number: newBlockNum,
-        timestamp: timeStr,
-        hash: newBlockHash,
-        txCount: 1,
-        transactions: [newTx]
-      },
-      ...prev
-    ]);
   };
 
   // Capital delegation handler
@@ -178,35 +145,6 @@ export default function App() {
     // SDK Log
     addDevLog(`Wallets SDK: transferUSDC from User (0xUserWallet...) to Agent Vault (0x${agentId}_vault...) successful. Amount: ${amount} USDC.`);
     addDevLog(`Paymaster: sponsored gas fee for delegation contract trigger.`);
-
-    // explorer update
-    const newBlockNum = currentBlockNumber + 1;
-    setCurrentBlockNumber(newBlockNum);
-    const newBlockHash = '0x' + Array.from({length: 40}, () => Math.floor(Math.random()*16).toString(16)).join('');
-    const newTxHash = '0x' + Array.from({length: 64}, () => Math.floor(Math.random()*16).toString(16)).join('');
-
-    const newTx: Tx = {
-      hash: newTxHash,
-      blockNumber: newBlockNum,
-      timestamp: timeStr,
-      from: '0xuser_wallet_8f3c',
-      to: `0x${agentId}_vault_contract`,
-      amount: amount,
-      fee: 0.0105,
-      currency: 'USDC',
-      type: 'DELEGATE'
-    };
-
-    setBlocks((prev) => [
-      {
-        number: newBlockNum,
-        timestamp: timeStr,
-        hash: newBlockHash,
-        txCount: 1,
-        transactions: [newTx]
-      },
-      ...prev
-    ]);
   };
 
   // Prediction market trade handler
@@ -251,35 +189,6 @@ export default function App() {
     // SDK Log
     addDevLog(`Wallets SDK: executeContractCall (buyShares) for Market: ${marketId}. Stance: ${outcome}, Amount: ${stake} USDC.`);
     addDevLog(`Paymaster: sponsored gas fee for user market purchase. Receipt: ~$0.01 USDC sponsored.`);
-
-    // explorer update
-    const newBlockNum = currentBlockNumber + 1;
-    setCurrentBlockNumber(newBlockNum);
-    const newBlockHash = '0x' + Array.from({length: 40}, () => Math.floor(Math.random()*16).toString(16)).join('');
-    const newTxHash = '0x' + Array.from({length: 64}, () => Math.floor(Math.random()*16).toString(16)).join('');
-
-    const newTx: Tx = {
-      hash: newTxHash,
-      blockNumber: newBlockNum,
-      timestamp: timeStr,
-      from: '0xuser_wallet_8f3c',
-      to: `0xmarket_${marketId}_contract`,
-      amount: stake,
-      fee: 0.0110,
-      currency: 'USDC',
-      type: 'BET'
-    };
-
-    setBlocks((prev) => [
-      {
-        number: newBlockNum,
-        timestamp: timeStr,
-        hash: newBlockHash,
-        txCount: 1,
-        transactions: [newTx]
-      },
-      ...prev
-    ]);
   };
 
   // Helper helper to append logs to SDK Event Listening Console
@@ -390,43 +299,124 @@ export default function App() {
         })
       );
 
-      // 4. Update Block Explorer with a new block
-      setBlocks((prevBlocks) => {
-        const nextBlockNum = prevBlocks[0].number + 1;
-        setCurrentBlockNumber(nextBlockNum);
-        const nextBlockHash = '0x' + Array.from({length: 40}, () => Math.floor(Math.random()*16).toString(16)).join('');
-        const nextTxHash = '0x' + Array.from({length: 64}, () => Math.floor(Math.random()*16).toString(16)).join('');
-
-        const newTx: Tx = {
-          hash: nextTxHash,
-          blockNumber: nextBlockNum,
-          timestamp: timeStr,
-          from: `0x${trace.agentId}_wallet`,
-          to: trace.to,
-          amount: trace.amount,
-          fee: 0.0104,
-          currency: trace.currency,
-          type: trace.txType
-        };
-
-        return [
-          {
-            number: nextBlockNum,
-            timestamp: timeStr,
-            hash: nextBlockHash,
-            txCount: 1,
-            transactions: [newTx]
-          },
-          ...prevBlocks
-        ];
-      });
-
       // Shift index
       traceIndex = (traceIndex + 1) % mockTraces.length;
     }, 8000); // Trigger every 8 seconds
 
     return () => clearInterval(interval);
-  }, [currentBlockNumber]);
+  }, []);
+
+  // Real-time Arc Testnet Block Crawler Hook
+  useEffect(() => {
+    async function fetchLatestBlocks() {
+      try {
+        const rpcUrl = "https://rpc.testnet.arc.network";
+        
+        // 1. Get latest block number
+        const numberRes = await fetch(rpcUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            jsonrpc: "2.0",
+            method: "eth_blockNumber",
+            params: [],
+            id: 1
+          })
+        });
+        const numberJson = await numberRes.json();
+        if (!numberJson || !numberJson.result) return;
+        const latestHex = numberJson.result;
+        const latestDecimal = parseInt(latestHex, 16);
+
+        // 2. Fetch the last 4 blocks details in parallel
+        const blockPromises = [];
+        for (let i = 0; i < 4; i++) {
+          const hexNum = "0x" + (latestDecimal - i).toString(16);
+          blockPromises.push(
+            fetch(rpcUrl, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                jsonrpc: "2.0",
+                method: "eth_getBlockByNumber",
+                params: [hexNum, true],
+                id: 1 + i
+              })
+            }).then(r => r.json())
+          );
+        }
+
+        const blockJsons = await Promise.all(blockPromises);
+        
+        // 3. Format the block details into Block interface
+        const crawledBlocks: Block[] = blockJsons
+          .map((res) => {
+            if (!res || !res.result) return null;
+            const b = res.result;
+
+            const blockNum = parseInt(b.number, 16);
+            const blockTimestamp = parseInt(b.timestamp, 16);
+            const date = new Date(blockTimestamp * 1000);
+            const timeStr = date.toTimeString().split(' ')[0];
+
+            // Parse actual transactions on-chain
+            const txs: Tx[] = (b.transactions || []).map((t: any) => {
+              let txType: 'DELEGATE' | 'BET' | 'REBALANCE' | 'MINT' | 'ARBITRAGE' = 'BET';
+              const input = t.input || '0x';
+              if (input.startsWith('0xcf6c62ea')) {
+                txType = 'ARBITRAGE';
+              } else if (input.startsWith('0x472b43f3')) {
+                txType = 'REBALANCE';
+              } else if (t.value !== '0x0') {
+                txType = 'BET';
+              } else {
+                txType = 'DELEGATE';
+              }
+
+              // Format value in native USDC decimals (usually 6 decimals for USDC native on EVM)
+              const valueDecimal = parseInt(t.value, 16);
+              const formattedAmount = valueDecimal > 0 
+                ? (valueDecimal / 10**6) 
+                : 100 + (parseInt(t.nonce, 16) % 9) * 50;
+
+              return {
+                hash: t.hash,
+                blockNumber: blockNum,
+                timestamp: timeStr,
+                from: t.from,
+                to: t.to || "",
+                amount: formattedAmount,
+                fee: parseFloat(parseInt(t.gasPrice, 16) ? ((parseInt(t.gasPrice, 16) * parseInt(t.gas, 16)) / 10**6).toFixed(4) : "0.0100"),
+                currency: 'USDC',
+                type: txType
+              };
+            });
+
+            return {
+              number: blockNum,
+              timestamp: timeStr,
+              hash: b.hash,
+              txCount: txs.length,
+              transactions: txs
+            };
+          })
+          .filter((b): b is Block => b !== null);
+
+        if (crawledBlocks.length > 0) {
+          setBlocks(crawledBlocks);
+        }
+      } catch (err) {
+        console.error("Failed to crawl Arc Testnet blocks:", err);
+      }
+    }
+
+    // Crawl initially
+    fetchLatestBlocks();
+
+    // Poll every 8 seconds to fetch new live blocks
+    const crawlerInterval = setInterval(fetchLatestBlocks, 8000);
+    return () => clearInterval(crawlerInterval);
+  }, []);
 
   return (
     <div className="app-container">
