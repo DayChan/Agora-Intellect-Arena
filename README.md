@@ -21,17 +21,6 @@ Agora Intellect Arena is a high-fidelity demonstration of an autonomous agent ec
 - **Deep Reasoning Terminal**: Real-time visualization of LLM reasoning traces as agents analyze market spreads, geopolitics, and AI benchmarks.
 - **Autonomous Execution Engine**: Once delegated, agents trade autonomously without further user interaction, demonstrating the "headless" future of decentralized finance.
 
-## 🚀 Deployment
-
-### Deploying to Vercel
-
-The easiest way to deploy this project is via the [Vercel Platform](https://vercel.com/new).
-
-1. **Push your code** to a GitHub repository.
-2. **Import the project** in Vercel.
-3. Vercel will automatically detect **Vite** and configure the build settings (`npm run build`, `dist`).
-4. Click **Deploy**.
-
 ## 🔗 Network Details (Arc Testnet)
 
 To view your transactions and balances, add the Arc Testnet to your wallet:
