@@ -8,11 +8,11 @@ interface DevPortalProps {
 
 export const DevPortal: React.FC<DevPortalProps> = ({ devLogs }) => {
   const [activeTab, setActiveTab] = useState<'cctp' | 'gateway' | 'wallets' | 'paymaster'>('cctp');
-  const consoleEndRef = useRef<HTMLDivElement>(null);
+  const consoleBodyRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (consoleEndRef.current) {
-      consoleEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    if (consoleBodyRef.current) {
+      consoleBodyRef.current.scrollTop = consoleBodyRef.current.scrollHeight;
     }
   }, [devLogs]);
 
@@ -80,7 +80,7 @@ export const DevPortal: React.FC<DevPortalProps> = ({ devLogs }) => {
           <TerminalSquare size={14} style={{ color: 'var(--accent)' }} />
           <span>Integration Event Listener Console</span>
         </div>
-        <div style={{
+        <div ref={consoleBodyRef} style={{
           backgroundColor: '#030303',
           border: '1px solid var(--card-border)',
           borderRadius: '2px',
@@ -103,7 +103,6 @@ export const DevPortal: React.FC<DevPortalProps> = ({ devLogs }) => {
               </div>
             ))
           )}
-          <div ref={consoleEndRef} />
         </div>
       </div>
     </div>

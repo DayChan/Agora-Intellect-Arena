@@ -16,11 +16,11 @@ export const ReasoningTerminal: React.FC<ReasoningTerminalProps> = ({
   onClearLogs,
 }) => {
   const [filterBySelected, setFilterBySelected] = useState<boolean>(false);
-  const terminalEndRef = useRef<HTMLDivElement>(null);
+  const terminalBodyRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (terminalEndRef.current) {
-      terminalEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    if (terminalBodyRef.current) {
+      terminalBodyRef.current.scrollTop = terminalBodyRef.current.scrollHeight;
     }
   }, [logs]);
 
@@ -75,7 +75,7 @@ export const ReasoningTerminal: React.FC<ReasoningTerminalProps> = ({
           </div>
         </div>
 
-        <div className="terminal-body">
+        <div ref={terminalBodyRef} className="terminal-body">
           {filteredLogs.length === 0 ? (
             <div style={{ color: 'var(--text-muted)', textAlign: 'center', marginTop: '40px' }}>
               No streaming logs. Waiting for agent kernel tick...
@@ -126,7 +126,6 @@ export const ReasoningTerminal: React.FC<ReasoningTerminalProps> = ({
               );
             })
           )}
-          <div ref={terminalEndRef} />
         </div>
       </div>
     </div>
