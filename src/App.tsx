@@ -729,7 +729,7 @@ export default function App() {
           justifyContent: 'space-between',
           alignItems: 'center'
         }}>
-          <span>🟢 已连接 Arc Testnet — 所有操作均可正常使用。链上交易需要测试网 Gas（可选）。</span>
+          <span>🟢 Connected to Arc Testnet — All features fully operational. On-chain transactions require Testnet Gas (Optional).</span>
           <a
             href="https://testnet.arcscan.app"
             target="_blank"
